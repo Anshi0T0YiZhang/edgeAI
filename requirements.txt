@@ -1,0 +1,14 @@
+tensorflow==2.20.0
+tf_keras==2.20.1
+onnx==1.17.0
+onnxruntime==1.21.1
+onnx2tf==1.28.8
+onnx-simplifier==0.4.36
+onnx_graphsurgeon==0.5.8
+sng4onnx==1.0.4
+ai-edge-litert==2.1.0
+ai-edge-quantizer==0.4.1
+flatbuffers>=25.9.0
+tflite==2.10.0
+numpy<2.0.0
+psutil
