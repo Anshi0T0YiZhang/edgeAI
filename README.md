@@ -143,18 +143,18 @@ Model
 
 ### 4.2 转换工具链
 
-**标准路径：**
+本项目采用标准的 ONNX → TFLite 转换流程：
+
 ```
-PyTorch/TensorFlow → ONNX → ONNX-SIMPLIFIER → onnx2tf → TFLite
+创建 ONNX 模型 → ONNX-SIMPLIFIER 简化 → onnx2tf 转换 → TFLite
 ```
 
-**本项目路径（因兼容性问题采用）：**
-```
-TensorFlow/Keras → TFLite (直接导出)
-ONNX API → ONNX 模型 (直接创建)
-```
+**各环节说明：**
+- **创建 ONNX**：使用 ONNX API 定义计算图结构
+- **简化模型**：`onnx-simplifier` 优化计算图，合并冗余节点
+- **转换为 TFLite**：`onnx2tf` 将 ONNX 算子映射到 TFLite 格式
 
-> 注：由于 `onnx2tf` 与 numpy 2.x 存在 pickle 兼容性问题，本项目采用直接创建方式演示两种格式。
+> 注：由于 onnx2tf 内部加载测试数据的兼容性问题，脚本会自动创建本地缓存文件来绕过。
 
 ### 4.3 转换命令
 
@@ -163,22 +163,26 @@ ONNX API → ONNX 模型 (直接创建)
 pip install -r requirements.txt
 ```
 
-#### 创建模型
+#### 转换模型
 ```bash
-# 创建 ONNX 和 TFLite 模型
+# 创建示例 ONNX 模型并转换为 TFLite
 python convert.py
 
-# 创建并量化为 Float16
-python convert.py --quantize float16
+# 转换指定的 ONNX 模型
+python convert.py -i your_model.onnx
 
-# 创建并量化为 INT8
-python convert.py --quantize int8
+# 指定输出目录
+python convert.py -i your_model.onnx -o output_dir
+```
 
-# 只创建 ONNX 模型
-python convert.py --method onnx
-
-# 只创建 TFLite 模型
-python convert.py --method keras
+#### 转换结果
+执行后会生成以下文件：
+```
+models/
+├── sample.onnx                # 原始 ONNX 模型
+├── sample_sim.onnx            # 简化后的 ONNX 模型
+├── sample_sim_float32.tflite  # TFLite Float32 模型
+└── sample_sim_float16.tflite  # TFLite Float16 量化模型
 ```
 
 #### 测试模型
@@ -187,10 +191,10 @@ python convert.py --method keras
 python test_model.py
 
 # 查看 ONNX 模型结构
-python test_model.py --onnx models/onnx_model.onnx --inspect
+python test_model.py --onnx models/sample_sim.onnx --inspect
 
 # 查看 TFLite 模型结构
-python test_model.py --tflite models/keras_model.tflite --inspect
+python test_model.py --tflite models/sample_sim_float32.tflite --inspect
 
 # 性能基准测试 (100次)
 python test_model.py --benchmark --runs 100
@@ -219,35 +223,36 @@ onnx2tf -i input.onnx -o output_folder -cind input_name input.npy
 edgeAI/
 ├── requirements.txt       # Python 依赖列表
 ├── README.md              # 本学习文档
-├── convert.py             # 模型创建与转换脚本
+├── convert.py             # ONNX 到 TFLite 转换脚本
 ├── test_model.py          # 模型推理测试脚本
 └── models/                # 模型存放目录
-    ├── onnx_model.onnx    # ONNX 模型 (21.9 KB)
-    └── keras_model.tflite # TFLite 模型 (23.5 KB)
+    ├── sample.onnx                # 原始 ONNX 模型 (21.8 KB)
+    ├── sample_sim.onnx            # 简化后 ONNX 模型 (22.0 KB)
+    ├── sample_sim_float32.tflite  # TFLite Float32 (23.2 KB)
+    └── sample_sim_float16.tflite  # TFLite Float16 (13.3 KB)
 ```
 
 ### 模型信息
 
 | 模型 | 输入格式 | 输入形状 | 输出形状 |
 |------|---------|---------|---------|
-| `onnx_model.onnx` | NCHW | [1, 3, 64, 64] | [1, 10] |
-| `keras_model.tflite` | NHWC | [1, 64, 64, 3] | [1, 10] |
+| `sample.onnx` | NCHW | [1, 3, 64, 64] | [1, 10] |
+| `sample_sim.onnx` | NCHW | [1, 3, 64, 64] | [1, 10] |
+| `sample_sim_float32.tflite` | NHWC | [1, 64, 64, 3] | [1, 10] |
+| `sample_sim_float16.tflite` | NHWC | [1, 64, 64, 3] | [1, 10] |
 
 ---
 
 ## 六、常见问题
 
-### Q1: onnx2tf 报错 "Cannot load file containing pickled data"
-这是 onnx2tf 与 numpy 2.x 的兼容性问题。解决方案：
-```bash
-pip install "numpy<2.0.0"
-```
+### Q1: onnx2tf 转换时报错无法加载测试数据？
+这是 onnx2tf 内部的问题。本脚本会自动创建本地缓存文件来绕过。
 
 ### Q2: ONNX 和 TFLite 输入格式不同？
 - **ONNX** 使用 NCHW 格式：`[Batch, Channel, Height, Width]`
 - **TFLite** 使用 NHWC 格式：`[Batch, Height, Width, Channel]`
 
-转换时需要使用 `np.transpose(data, (0, 2, 3, 1))` 进行格式转换。
+onnx2tf 转换时会自动处理数据格式的转换。
 
 ### Q3: 如何查看模型结构？
 推荐使用 [Netron](https://netron.app/) 可视化工具，支持 ONNX 和 TFLite 格式。
