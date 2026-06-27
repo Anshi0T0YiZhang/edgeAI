@@ -356,3 +356,26 @@ python test_model.py --compare --onnx models/sample_sim.onnx --tflite models/sam
 | 输出差异 | 数据格式未转换 | 检查 NCHW/NHWC 转换 |
 | 模型变大 | 优化未生效 | 重新运行 onnx-simplifier |
 | onnx2tf 下载失败 | 网络问题 | 创建本地缓存文件 |
+
+---
+
+## 参考文献与资源
+
+### 官方文档与工具
+- [onnx2tf GitHub](https://github.com/PINTO0309/onnx2tf) - ONNX 到 TFLite 转换工具
+- [ONNX 官方文档](https://onnx.ai/) - Open Neural Network Exchange 官方网站
+- [TensorFlow Lite 文档](https://www.tensorflow.org/lite) - TFLite 官方文档
+
+### 技术博客与教程
+- [ONNX 转 TFLite 详解 - CSDN](https://blog.csdn.net/gitblog_00303/article/details/157982232) - ONNX 模型转换为 TFLite 的详细教程
+- [Silicon Labs MLTK 教程](https://siliconlabs.github.io/mltk/mltk/tutorials/onnx_to_tflite.html) - MLTK 中的 ONNX 到 TFLite 转换指南
+
+### 硬件厂商文档
+- [Qualcomm Hexagon NN 指南](https://docs.qualcomm.com/doc/80-80022-15B/topic/export-onnx-model-to-litert.html) - 导出 ONNX 模型到 LiteRT 的 Qualcomm 文档
+
+### 可视化工具
+- [Netron](https://netron.app/) - 模型结构可视化工具
+
+### 其他资源
+- [onnx-simplifier](https://github.com/daquexian/onnx-simplifier) - ONNX 模型简化工具
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime) - ONNX 推理引擎
