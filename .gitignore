@@ -1,0 +1,18 @@
+# ── 模型文件（通过 download_models.py 下载）──
+open-onnx2tflite/models/*.onnx
+open-onnx2tflite/models/*_float32/
+open-onnx2tflite/models/*_int8/
+
+# ── 数据集文件（通过 download_data.py 下载）──
+open-onnx2tflite/data/mnist/
+open-onnx2tflite/data/imagenette2-320/
+open-onnx2tflite/data/imagenette2-320.tgz
+
+# ── 校准文件（通过 build_calib.py 生成）──
+open-onnx2tflite/data/calib_*.npy
+open-onnx2tflite/calibration_image_sample_data_*.npy
+
+# ── Python ──
+__pycache__/
+*.pyc
+.venv/
