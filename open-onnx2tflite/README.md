@@ -6,6 +6,8 @@
 
 ## 目录
 
+- [数据流水线](#数据流水线)
+- [脚本执行流水线](#脚本执行流水线)
 - [项目结构](#项目结构)
 - [脚本说明](#脚本说明)
 - [快速开始](#快速开始)
@@ -13,6 +15,66 @@
 - [INT8 量化原理](#int8-量化原理)
 - [验证结果](#验证结果)
 - [参考资料](#参考资料)
+
+---
+
+## 数据流水线
+
+```
+外部下载源                      本地目录                         说明
+──────────                      ────────                         ────
+
+HuggingFace onnxmodelzoo ──→  models/*.onnx               转换输入（ONNX 模型）
+                              models/*_sim.onnx            中间产物（简化后 ONNX）
+                              models/*_float32/            转换输出（float32 TFLite）
+                              models/*_int8/               转换输出（INT8 TFLite）
+
+AWS S3 (MNIST)          ──→  data/mnist/                   原始数据集
+fastai S3 (Imagenette)  ──→  data/imagenette2-320/         原始数据集
+                              data/calib_mnist_*.npy       中间产物（校准数据）
+                              data/calib_imagenet_*.npy    中间产物（校准数据）
+```
+
+数据依赖关系：
+
+```
+models/*.onnx ──────────────────────→ convert.py ──→ models/*_float32/
+                                             │
+data/mnist/         ──→ build_calib.py ──→   │      ──→ models/*_int8/
+data/imagenette2-320/ ──→    │         │     │
+                             └─ calib_*.npy ──┘
+                                    ↑
+                              校准数据：供 INT8 量化使用
+```
+
+验证阶段的数据来源：
+
+```
+validate.py ──┬── 读取 models/*.onnx          （ONNX 推理）
+              ├── 读取 models/*_float32/       （float32 TFLite 推理）
+              ├── 读取 models/*_int8/          （INT8 TFLite 推理）
+              └── 读取 data/mnist/ 或 data/imagenette2-320/  （真实验证图片）
+```
+
+## 脚本执行流水线
+
+```
+步骤 1                步骤 2                步骤 3               步骤 4                步骤 5
+download_models.py    download_data.py      build_calib.py       convert.py            validate.py
+    │                     │                     │                    │                     │
+    ▼                     ▼                     ▼                    ▼                     ▼
+models/               data/                  data/                models/               读取三种模型
+  *.onnx                mnist/                 calib_*.npy          *_float32/           + 真实图片
+                        imagenette2-320/                            *_int8/
+```
+
+依赖关系与执行顺序：
+
+```
+步骤1 下载模型  ──────────────────────────┐
+                                          ├──→ 步骤4 模型转换 ──→ 步骤5 精度验证
+步骤2 下载数据  ──→ 步骤3 生成校准数据 ───┘
+```
 
 ---
 
@@ -48,12 +110,20 @@ open-onnx2tflite/
 
 从 HuggingFace `onnxmodelzoo` 下载 4 个公开 ONNX 模型到 `models/`：
 
-| 模型 | 输入形状 | 大小 |
+| 模型 | 输入形状（NCHW） | 大小 |
 |------|----------|------|
 | MNIST-12 | `[1, 1, 28, 28]` | ~26 KB |
 | SqueezeNet1.1-7 | `[1, 3, 224, 224]` | ~5 MB |
 | MobileNetV2-7 | `[1, 3, 224, 224]` | ~14 MB |
 | ResNet18-v1-7 | `[1, 3, 224, 224]` | ~45 MB |
+
+> **输入形状解读**：格式为 `[N, C, H, W]`（NCHW，即 ONNX 标准布局）。
+> - **N**（Batch）：一次推理输入的图片数量，本项目模型均固定为 1
+> - **C**（Channel）：图片通道数，MNIST 为 1（灰度图），其余为 3（RGB 彩色图）
+> - **H**（Height）：图片高度像素数，MNIST 为 28，其余为 224
+> - **W**（Width）：图片宽度像素数，同上
+>
+> 例如 `[1, 3, 224, 224]` 表示：1 张 3 通道（RGB）、224×224 像素的图片。转换为 TFLite 后布局变为 NHWC `[1, 224, 224, 3]`，通道维移到最后。
 
 ```bash
 python download_models.py                # 下载全部
@@ -76,6 +146,8 @@ python download_data.py --dataset mnist  # 仅下载 MNIST
 ### `build_calib.py` — 生成校准数据
 
 从真实数据集中提取样本，生成 NHWC float32 的 `.npy` 校准文件，供 `onnx2tf` INT8 量化使用。
+
+> **校准数据的作用**：INT8 静态量化需要知道神经网络每一层激活值的数值范围（最小值、最大值），才能计算量化参数（scale 和 zero_point）。校准数据就是一组有代表性的真实输入样本，量化工具用它对 float32 模型做一遍前向推理，统计出每层激活值的范围。校准数据不需要标签，只需要"长得像真实输入"即可——如果用随机噪声做校准，统计出的范围会偏离真实分布，导致量化后精度严重下降。这也是为什么本项目从 MNIST/Imagenette 真实图片中提取校准数据。
 
 - `data/calib_mnist_28x28x1_float32.npy`：从 MNIST test 集取 200 张，归一化到 0~1，形状 `[200, 28, 28, 1]`
 - `data/calib_imagenet_224x224x3_float32.npy`：从 Imagenette val 集取 200 张，经 ImageNet 标准预处理（resize 256 → center crop 224 → 归一化 → mean/std 标准化），形状 `[200, 224, 224, 3]`
@@ -105,6 +177,8 @@ python convert.py --model mobilenetv2-7 --quantize int8  # 单模型 INT8
 ### `validate.py` — 精度验证脚本
 
 对比 ONNX、float32 TFLite、INT8 TFLite 三者的推理输出，验证转换与量化的精度。
+
+> **验证的是什么"精度"**：这里验证的"精度"不是模型本身的分类准确率（即"图片是否分类正确"），而是**格式转换/量化前后的数值一致性**。具体做法是：用同一张图片分别输入 ONNX 模型和 TFLite 模型，对比它们输出向量的差异。输出向量是模型最后一层的原始分数（logits），例如 1000 类分类模型会输出 1000 个浮点数。如果转换/量化没有引入偏差，两个模型对同一输入应产生几乎相同的输出向量。
 
 ```bash
 python validate.py --all                    # 验证全部模型
@@ -232,8 +306,10 @@ def dequantize_output(quant_data, output_detail):
 
 | 方式 | 说明 | 精度 |
 |------|------|------|
-| **训练后动态量化**（Dynamic Quantization） | 权重提前量化，激活值在推理时动态量化 | 较高 |
-| **训练后静态量化**（Post-Training Static Quantization, PTQ） | 权重和激活值都提前量化，需要校准数据 | 中等，本项目使用 |
+| **训练后动态量化**（Dynamic Quantization） | 权重提前量化为 int8，激活值在推理时根据实际数值范围动态量化（每跑一次都重新算 scale） | 较高 |
+| **训练后静态量化**（Post-Training Static Quantization, PTQ） | 权重和激活值都提前量化为 int8，激活值的 scale/zero_point 在校准阶段一次性确定，推理时固定不变 | 中等 |
+
+> **本项目采用的是训练后静态量化（PTQ）**。选择依据：嵌入式/边缘设备上推理时不想额外花算力动态计算激活值范围，静态量化的 scale/zero_point 已提前确定，推理速度更快、延迟更稳定。代价是需要额外准备校准数据（由 `build_calib.py` 生成），且精度比动态量化略低。
 
 ### 校准（Calibration）
 
@@ -268,6 +344,13 @@ MNIST 结构简单、激活值分布稳定，量化几乎无损；SqueezeNet/Mob
 ## 验证结果
 
 使用 5 张真实图片验证（`python validate.py --all --num-samples 5`）：
+
+> **Top-1 / Top-5 含义**：分类模型输出一个包含所有类别分数的向量（如 1000 类则 1000 个数），分数最高的类别最可能是正确答案。
+> - **Top-1**：取分数最高的 **1** 个类别，判断它是否与参考模型（ONNX）的预测一致。例如 ONNX 认为是"猫"，TFLite 也认为是"猫"，则 Top-1 一致。
+> - **Top-5**：取分数最高的 **5** 个类别，判断参考模型的 Top-1 预测是否出现在这 5 个类别中。Top-5 比 Top-1 宽容——即使排名第一的类别不同，只要正确答案还在前 5 名里就算通过。
+> - **Top-1/Top-5 一致率**：在所有测试样本中，TFLite 模型与 ONNX 模型预测结果一致的比例。100% 表示完全一致。
+>
+> **"误差"是什么**：表中"最大绝对误差"和"平均绝对误差"指的是 ONNX 模型与 TFLite 模型**输出向量之间的逐元素绝对差值**，单位与输出 logits 相同（不是百分比，不是分类错误率）。例如 INT8 最大绝对误差 14.40 表示：ONNX 输出的某个类别分数是 50.0，INT8 TFLite 对应分数是 35.6，差了 14.4。误差大不一定代表分类错误——只要最高分对应的类别没变，分类结果就是对的。
 
 ### float32 TFLite vs ONNX
 

@@ -25,8 +25,8 @@ MODELS = {
         'input_name': 'Input3',
         'input_shape': [1, 1, 28, 28],
         'calib_npy': 'data/calib_mnist_28x28x1_float32.npy',
-        'cind_mean': '[[[[0.0]]]]',
-        'cind_std': '[[[[1.0]]]]',
+        'cind_mean': '[[[[0.1307]]]]',
+        'cind_std': '[[[[0.3081]]]]',
     },
     'squeezenet1.1-7': {
         'onnx_file': 'squeezenet1.1-7.onnx',

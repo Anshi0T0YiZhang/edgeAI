@@ -21,9 +21,9 @@ import numpy as np
 
 DATA_DIR = 'data'
 
-# MNIST 预处理参数：仅归一化到 0~1
-MNIST_MEAN = 0.0
-MNIST_STD = 1.0
+# MNIST 预处理参数：归一化到 0~1 后做标准化（MNIST-12 模型训练时使用此参数）
+MNIST_MEAN = 0.1307
+MNIST_STD = 0.3081
 
 # ImageNet 预处理参数
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -59,8 +59,9 @@ def build_mnist_calib(num_samples: int = 200):
     # 取前 num_samples 张
     images = images[:num_samples]
 
-    # 预处理：归一化到 0~1，添加通道维 → [N, 28, 28, 1] NHWC float32
+    # 预处理：归一化到 0~1 + 标准化，添加通道维 → [N, 28, 28, 1] NHWC float32
     data = images.astype(np.float32) / 255.0
+    data = (data - MNIST_MEAN) / MNIST_STD
     data = data[:, :, :, np.newaxis]  # [N, 28, 28, 1]
 
     np.save(out, data)
