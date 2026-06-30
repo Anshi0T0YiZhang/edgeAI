@@ -1,4 +1,4 @@
-# Ignore model and data files, keep directory structure
+# Ignore model files, keep directory structure
 *.onnx
 *.tflite
 *.pb
@@ -7,6 +7,4 @@
 *.tgz
 *.data-*
 *.index
-*.csv
-*/*
 !*/.gitkeep
