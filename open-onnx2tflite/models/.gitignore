@@ -1,0 +1,12 @@
+# Ignore model and data files, keep directory structure
+*.onnx
+*.tflite
+*.pb
+*.npy
+*.gz
+*.tgz
+*.data-*
+*.index
+*.csv
+*/*
+!*/.gitkeep

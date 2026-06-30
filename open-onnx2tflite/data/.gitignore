@@ -1,0 +1,9 @@
+# Ignore data files, keep directory structure
+*.npy
+*.gz
+*.tgz
+*.idx1-ubyte
+*.idx3-ubyte
+*.csv
+*/*
+!*/.gitkeep
