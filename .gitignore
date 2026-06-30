@@ -1,5 +1,6 @@
 # ── 模型文件（通过 download_models.py 下载）──
 open-onnx2tflite/models/*.onnx
+open-onnx2tflite/models/*_sim.onnx
 open-onnx2tflite/models/*_float32/
 open-onnx2tflite/models/*_int8/
 
